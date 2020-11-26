@@ -46,25 +46,22 @@ import threading
 
 indent_at_import = threading.get_ident()
 
+if not is_current_thread_main_thread():
+    error_msg = 'Current thread does not seem to be a main thread at the start of the session. Details:\n'
+    current_thread = threading.current_thread()
+    error_msg += 'Current thread: %s\n' % (current_thread,)
+    error_msg += 'Current thread ident: %s\n' % (current_thread.ident,)
+    error_msg += 'ident at import: %s\n' % (indent_at_import,)
+    error_msg += 'curr ident: %s\n' % (threading.get_ident(),)
 
-@pytest.yield_fixture(autouse=True, scope='session')
-def check_main_thread_session(request):
-    if not is_current_thread_main_thread():
-        error_msg = 'Current thread does not seem to be a main thread at the start of the session. Details:\n'
-        current_thread = threading.current_thread()
-        error_msg += 'Current thread: %s\n' % (current_thread,)
-        error_msg += 'Current thread ident: %s\n' % (current_thread.ident,)
-        error_msg += 'ident at import: %s\n' % (indent_at_import,)
-        error_msg += 'curr ident: %s\n' % (threading.get_ident(),)
+    if hasattr(threading, 'main_thread'):
+        error_msg += 'Main thread found: %s\n' % (threading.main_thread(),)
+        error_msg += 'Main thread id: %s\n' % (threading.main_thread().ident,)
+    else:
+        error_msg += 'Current main thread not instance of: %s (%s)\n' % (
+            threading._MainThread, current_thread.__class__.__mro__,)
 
-        if hasattr(threading, 'main_thread'):
-            error_msg += 'Main thread found: %s\n' % (threading.main_thread(),)
-            error_msg += 'Main thread id: %s\n' % (threading.main_thread().ident,)
-        else:
-            error_msg += 'Current main thread not instance of: %s (%s)\n' % (
-                threading._MainThread, current_thread.__class__.__mro__,)
-
-        raise AssertionError(error_msg)
+    raise AssertionError(error_msg)
 
 
 @pytest.yield_fixture(autouse=True)

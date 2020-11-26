@@ -33,12 +33,17 @@ def test_is_main_thread():
 
     This is due to it failing sometimes (only on Windows).
 
+    I (fabioz) am not 100% sure on why this happens, but when this happens the initial thread for
+    the tests seems to be a non main thread and fails right at the start of the session.
+
+    i.e.: With an autouse fixture with a scope='session'
+
 
     from _pydevd_bundle.pydevd_utils import is_current_thread_main_thread
     import threading
     indent_at_import = threading.get_ident()
 
-    @pytest.yield_fixture(autouse=True)
+    @pytest.yield_fixture(autouse=True, scope='session')
     def check_main_thread_session(request):
         if not is_current_thread_main_thread():
             error_msg = 'Current thread does not seem to be a main thread at the start of the session. Details:\n'
@@ -57,12 +62,14 @@ def test_is_main_thread():
 
 >           raise AssertionError(error_msg)
 E           AssertionError: Current thread does not seem to be a main thread at the start of the session. Details:
-E           Current thread: <_DummyThread(Dummy-2, started daemon 2180)>
-E           Current thread ident: 2180
-E           ident at import: 2180
-E           curr ident: 2180
-E           Main thread found: <_MainThread(MainThread, started 6328)>
-E           Main thread id: 6328
+E           Current thread: <_DummyThread(Dummy-2, started daemon 7072)>
+E           Current thread ident: 7072
+E           ident at import: 7072
+E           curr ident: 7072
+E           Main thread found: <_MainThread(MainThread, started 5924)>
+E           Main thread id: 5924
+
+conftest.py:67: AssertionError
     '''
     from _pydevd_bundle.pydevd_utils import is_current_thread_main_thread
     from _pydevd_bundle.pydevd_utils import dump_threads
