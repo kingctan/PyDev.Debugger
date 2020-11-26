@@ -36,7 +36,11 @@ def test_is_main_thread():
     I (fabioz) am not 100% sure on why this happens, but when this happens the initial thread for
     the tests seems to be a non main thread and fails right at the start of the session.
 
-    i.e.: With an autouse fixture with a scope='session'
+    i.e.: With an autouse fixture with a scope='session' with the code below, it's possible to see
+    that at even at the `conftest` import (where indent_at_import is assigned) the current thread
+    is already not the main thread.
+
+    As far as I know this seems to be an issue
 
 
     from _pydevd_bundle.pydevd_utils import is_current_thread_main_thread
