@@ -41,6 +41,65 @@ def pytest_report_header(config):
 
 _started_monitoring_threads = False
 
+from _pydevd_bundle.pydevd_utils import is_current_thread_main_thread
+import threading
+
+indent_at_import = threading.get_ident()
+
+
+@pytest.yield_fixture(autouse=True, scope='session')
+def check_main_thread_session(request):
+    if not is_current_thread_main_thread():
+        error_msg = 'Current thread does not seem to be a main thread at the start of the session. Details:\n'
+        current_thread = threading.current_thread()
+        error_msg += 'Current thread: %s\n' % (current_thread,)
+        error_msg += 'Current thread ident: %s\n' % (current_thread.ident,)
+        error_msg += 'ident at import: %s\n' % (indent_at_import,)
+        error_msg += 'curr ident: %s\n' % (threading.get_ident(),)
+
+        if hasattr(threading, 'main_thread'):
+            error_msg += 'Main thread found: %s\n' % (threading.main_thread(),)
+            error_msg += 'Main thread id: %s\n' % (threading.main_thread().ident,)
+        else:
+            error_msg += 'Current main thread not instance of: %s (%s)\n' % (
+                threading._MainThread, current_thread.__class__.__mro__,)
+
+        raise AssertionError(error_msg)
+
+
+@pytest.yield_fixture(autouse=True)
+def check_main_thread(request):
+    check_main_thread.tests_run += 1
+    if check_main_thread.tests_run > 2:
+        pytest.skip('finish')
+    was_main = is_current_thread_main_thread()
+
+    yield
+
+    is_main = is_current_thread_main_thread()
+    if not is_main:
+        error_msg = 'Current thread does not seem to be a main thread. Details:\n'
+        current_thread = threading.current_thread()
+        error_msg += 'Current thread: %s\n' % (current_thread,)
+        error_msg += 'Current thread ident: %s\n' % (current_thread.ident,)
+        error_msg += 'ident at import: %s\n' % (indent_at_import,)
+        error_msg += 'curr ident: %s\n' % (threading.get_ident(),)
+
+        if hasattr(threading, 'main_thread'):
+            error_msg += 'Main thread found: %s\n' % (threading.main_thread(),)
+            error_msg += 'Main thread ident: %s\n' % (threading.main_thread().ident,)
+        else:
+            error_msg += 'Current main thread not instance of: %s (%s)\n' % (
+                threading._MainThread, current_thread.__class__.__mro__,)
+
+        error_msg += 'Was main: %s\n' % (was_main,)
+        error_msg += 'Function: %s\n' % (request.node.nodeid,)
+
+        raise AssertionError(error_msg)
+
+
+check_main_thread.tests_run = 0
+
 
 def _start_monitoring_threads():
     # After the session finishes, wait 20 seconds to see if everything finished properly
@@ -96,42 +155,10 @@ def _start_monitoring_threads():
         dump_current_frames_thread.start()
 
 
-def pytest_unconfigure():
-    _start_monitoring_threads()
-
-
 @pytest.yield_fixture(scope="session", autouse=True)
 def check_no_threads():
     yield
     _start_monitoring_threads()
-
-
-from _pydevd_bundle.pydevd_utils import is_current_thread_main_thread
-import threading
-
-
-@pytest.yield_fixture(autouse=True)
-def check_main_thread(request):
-    was_main = is_current_thread_main_thread()
-
-    yield
-
-    is_main = is_current_thread_main_thread()
-    if not is_main:
-        error_msg = 'Current thread does not seem to be a main thread. Details:\n'
-        current_thread = threading.current_thread()
-        error_msg += 'Current thread: %s\n' % (current_thread,)
-
-        if hasattr(threading, 'main_thread'):
-            error_msg += 'Main thread found: %s\n' % (threading.main_thread(),)
-        else:
-            error_msg += 'Current main thread not instance of: %s (%s)\n' % (
-                threading._MainThread, current_thread.__class__.__mro__,)
-
-        error_msg += 'Was main: %s\n' % (was_main,)
-        error_msg += 'Function: %s\n' % (request.node.nodeid,)
-
-        raise AssertionError(error_msg)
 
 
 # see: http://goo.gl/kTQMs
