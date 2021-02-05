@@ -102,9 +102,9 @@ import imp
 from _pydev_bundle.pydev_imports import Exec
 from _pydevd_bundle import pydevd_dont_trace
 import sys
-import traceback
 import types
 from _pydev_bundle import pydev_log
+from _pydevd_bundle.pydevd_constants import get_global_debugger
 
 NO_DEBUG = 0
 LEVEL1 = 1
@@ -113,22 +113,19 @@ LEVEL2 = 2
 DEBUG = NO_DEBUG
 
 
-def write(*args):
-    new_lst = []
-    for a in args:
-        new_lst.append(str(a))
-
-    msg = ' '.join(new_lst)
-    sys.stdout.write('%s\n' % (msg,))
-
-
 def write_err(*args):
-    new_lst = []
-    for a in args:
-        new_lst.append(str(a))
 
-    msg = ' '.join(new_lst)
-    sys.stderr.write('pydev debugger: %s\n' % (msg,))
+    py_db = get_global_debugger()
+    if py_db is not None:
+        new_lst = []
+        for a in args:
+            new_lst.append(str(a))
+
+        msg = ' '.join(new_lst)
+        s = 'code reload: %s\n' % (msg,)
+        cmd = py_db.cmd_factory.make_io_message(s, self._out_ctx)
+        if py_db.writer is not None:
+            py_db.writer.add_command(cmd)
 
 
 def notify_info0(*args):
@@ -137,12 +134,12 @@ def notify_info0(*args):
 
 def notify_info(*args):
     if DEBUG >= LEVEL1:
-        write(*args)
+        write_err(*args)
 
 
 def notify_info2(*args):
     if DEBUG >= LEVEL2:
-        write(*args)
+        write_err(*args)
 
 
 def notify_error(*args):

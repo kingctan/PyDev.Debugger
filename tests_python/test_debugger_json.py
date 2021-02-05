@@ -5306,6 +5306,55 @@ def test_native_threads(case_setup, pyfile):
         writer.finished_ok = True
 
 
+def test_code_reload(case_setup, pyfile):
+
+    @pyfile
+    def mod1():
+        import mod2
+        import time
+        finish = False
+        for _ in range(50):
+            finish = mod2.do_something()
+            if finish:
+                break
+            time.sleep(.1)  # Break 1
+        else:
+            raise AssertionError('It seems the reload was not done in the available amount of time.')
+
+        print('TEST SUCEEDED')  # Break 2
+
+    @pyfile
+    def mod2():
+
+        def do_something():
+            return False
+
+    with case_setup.test_file(mod1) as writer:
+        json_facade = JsonFacade(writer)
+
+        line1 = writer.get_line_index_with_content('Break 1')
+        line2 = writer.get_line_index_with_content('Break 2')
+        json_facade.write_launch(justMyCode=False)
+        json_facade.write_set_breakpoints([line1, line2])
+        json_facade.write_make_initial_run()
+
+        # At this point we know that 'do_something' was called at least once.
+        json_facade.wait_for_thread_stopped(line=line1)
+        json_facade.write_set_breakpoints(line2)
+
+        with open(mod2, 'w') as stream:
+            stream.write('''
+def do_something():
+    return True
+''')
+
+        json_facade.write_continue()
+        json_facade.wait_for_thread_stopped(line=line2)
+        json_facade.write_continue()
+
+        writer.finished_ok = True
+
+
 if __name__ == '__main__':
     pytest.main(['-k', 'test_case_skipping_filters', '-s'])
 

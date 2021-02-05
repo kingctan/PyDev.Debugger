@@ -62,7 +62,7 @@ from pydevd_file_utils import get_fullname, get_package_dir
 from os.path import abspath as os_path_abspath
 import pydevd_tracing
 from _pydevd_bundle.pydevd_comm import (InternalThreadCommand, InternalThreadCommandForAnyThread,
-    create_server_socket)
+    create_server_socket, FSNotifyThread)
 from _pydevd_bundle.pydevd_comm import(InternalConsoleExec,
     _queue, ReaderThread, GetGlobalDebugger, get_global_debugger,
     set_global_debugger, WriterThread,
@@ -490,6 +490,7 @@ class PyDB(object):
 
         self.reader = None
         self.writer = None
+        self._fsnotify_thread = None
         self.created_pydb_daemon_threads = {}
         self._waiting_for_connection_thread = None
         self._on_configuration_done_event = threading.Event()
@@ -537,6 +538,7 @@ class PyDB(object):
         self.ready_to_run = False
         self._main_lock = thread.allocate_lock()
         self._lock_running_thread_ids = thread.allocate_lock()
+        self._lock_create_fs_notify = thread.allocate_lock()
         self._py_db_command_thread_event = threading.Event()
         if set_as_global:
             CustomFramesContainer._py_db_command_thread_event = self._py_db_command_thread_event
@@ -665,6 +667,28 @@ class PyDB(object):
 
         # Stop the tracing as the last thing before the actual shutdown for a clean exit.
         atexit.register(stoptrace)
+
+    def setup_auto_reload_watcher(self, enable_auto_reload, watch_dirs, poll_target_time, ignore_directories, file_extensions):
+        try:
+            with self._lock_create_fs_notify:
+                if not enable_auto_reload:
+                    if self._fsnotify_thread is not None:
+                        self._fsnotify_thread.do_kill_pydev_thread()
+                        self._fsnotify_thread = None
+                    return
+    
+                if self._fsnotify_thread is None:
+                    self._fsnotify_thread = FSNotifyThread(self, PyDevdAPI())
+    
+                watcher = self._fsnotify_thread.watcher
+                watcher.ignored_dirs = set(ignore_directories)
+                watcher.accepted_file_extensions = set(file_extensions)
+                watcher.target_time_for_single_scan = poll_target_time
+                watcher.target_time_for_notification = poll_target_time
+                watcher.set_tracked_paths(watch_dirs)
+                self._fsnotify_thread.start()
+        except:
+            pydev_log.exception('Error setting up auto-reload.')
 
     def get_arg_ppid(self):
         try:
@@ -1076,6 +1100,9 @@ class PyDB(object):
                 cache[cache_key] = self._files_filtering.in_project_roots(absolute_filename)
 
             return cache[cache_key]
+
+    def in_project_roots_filename_uncached(self, absolute_filename):
+        return self._files_filtering.in_project_roots(absolute_filename)
 
     def _clear_filters_caches(self):
         self._in_project_scope_cache.clear()

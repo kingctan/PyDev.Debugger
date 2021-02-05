@@ -397,6 +397,34 @@ class PyDevJsonCommandProcessor(object):
 
             self.api.set_ignore_system_exit_codes(py_db, ignore_system_exit_codes)
 
+        auto_reload = args.get('autoReload', {})
+        if not isinstance(auto_reload, dict):
+            pydev_log.info('Expected autoReload to be a dict. Received: %s' % (auto_reload,))
+            auto_reload = {}
+
+        enable_auto_reload = auto_reload.get('enable', True)
+        watch_dirs = auto_reload.get('watchDirs')
+        if not watch_dirs:
+            check = sys.path[:]
+            watch_dirs = [pydevd_file_utils.absolute_path(w) for w in check]
+            if self._options.just_my_code:
+                watch_dirs = [w for w in watch_dirs if py_db.in_project_roots_filename_uncached(w)]
+                
+            # Always watch the program dir (if available) as well as the current dir.
+            program = args.get('program')
+            if program:
+                if os.path.isdir(program):
+                    watch_dirs.append(program)
+                else:
+                    watch_dirs.append(os.path.dirname(program))
+            watch_dirs.append(os.path.abspath('.'))
+                    
+        poll_target_time = auto_reload.get('pollTargetTime', 3)
+        ignore_directories = auto_reload.get('ignoreDirectories', ['.git', '__pycache__', 'node_modules'])
+        file_extensions = auto_reload.get('fileExtensions', ['.py', '.pyw'])
+        self.api.setup_auto_reload_watcher(
+            py_db, enable_auto_reload, watch_dirs, poll_target_time, ignore_directories, file_extensions)
+
         if self._options.stop_on_entry and start_reason == 'launch':
             self.api.stop_on_entry()
 
